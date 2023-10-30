@@ -1,4 +1,5 @@
 import os
+import subprocess
 from subprocess import Popen, PIPE
 
 image_path = os.path.join(os.getcwd(), "images")
@@ -50,17 +51,18 @@ def makeSlideshow(count, duration, transitionEffect):
     cmd.append('libx264')
     cmd.append('output.mp4')
 
-    print(cmd)
+    #print(cmd)
 
+    length = duration * count - 0.5 * (count - 1)
+    print(length)
     startProcess(cmd)
-
-    return "output.mp4"
+    return ("output.mp4",length)
 
 
 def makeFadeInFadeOut(fileName, duration):
     # Fade in Fade out
 
-    cmd = ['ffmpeg', '-i', os.path.join(os.getcwd(), fileName), '-vf', 'fade=t=in:st=0:d=' + str(duration), '-c:a',
+    cmd = ['ffmpeg', '-i', os.path.join(os.getcwd(), fileName[0]), '-vf', 'fade=t=in:st=0:d=' + str(duration) + ',fade=t=out:st=' + str(fileName[1]-duration) +':d=' + str(duration), '-c:a',
            'copy',
            'out.mp4']
     startProcess(cmd)
@@ -71,7 +73,7 @@ def startProcess(cmd):
 
     stdout, stderr = process.communicate()
 
-    print(stdout)
+    #print(stdout)
     print(stderr)
 
 
