@@ -1,8 +1,10 @@
 import os
+from threading import Thread
 
 import customtkinter
 from PIL import Image
 from tkinter import filedialog as fd
+from subprocess import Popen, PIPE
 
 customtkinter.set_appearance_mode("dark")
 customtkinter.set_default_color_theme("green")
@@ -22,6 +24,16 @@ new_file = customtkinter.CTkImage(Image.open(os.path.join(image_path, "add-docum
 open_file = customtkinter.CTkImage(Image.open(os.path.join(image_path, "open.png")), size=(17, 17))
 save_file = customtkinter.CTkImage(Image.open(os.path.join(image_path, "disk.png")), size=(17, 17))
 
+milestones = {
+    "F2": "f2.png",
+    "Gold Star": "gold.png",
+    "L1": "l1.png",
+    "Double L1": "double_l1.png",
+    "L2": "l2.png",
+    "Half Century": "half_century.png",
+    "L3": "l3.png",
+    "Century": "century.png"
+}
 milestone = ""
 listOfImages = []
 
@@ -95,8 +107,8 @@ class Body(customtkinter.CTkFrame):
         self.frameControl1 = customtkinter.CTkFrame(self, height=90, fg_color="transparent")
         self.frameControl1.grid(row=2, column=0, sticky="nsew", padx=(10, 5), pady=10)
 
-        self.lblEffect = customtkinter.CTkLabel(self.frameControl1, text= "Effect : ", font=("Skia",18))
-        self.lblEffect.grid(row=0,column=0,padx=10,pady=5)
+        self.lblEffect = customtkinter.CTkLabel(self.frameControl1, text="Effect : ", font=("Skia", 18))
+        self.lblEffect.grid(row=0, column=0, padx=10, pady=5)
 
         self.dropdownEffect = customtkinter.CTkOptionMenu(self.frameControl1,
                                                           values=["hlslice", "circlecrop", "wipeleft", "slideright",
@@ -120,22 +132,24 @@ class Body(customtkinter.CTkFrame):
                                                              command=self.dropdownMilestone_callback)
         self.dropdownMilestone.grid(row=1, column=1, padx=10, pady=5)
 
-
-
         self.frameControl2 = customtkinter.CTkFrame(self, height=90)
         self.frameControl2.grid(row=2, column=1, sticky="nsew", padx=(5, 10), pady=10)
 
-        self.frameControl2.grid_rowconfigure(0,weight=1)
+        self.frameControl2.grid_rowconfigure(0, weight=1)
 
         self.btnStart = customtkinter.CTkButton(self.frameControl2,
                                                 text="Start",
-                                                font=("Skia",25),
+                                                font=("Skia", 25),
                                                 fg_color="#6c6ceb",
                                                 hover_color="#5555e8",
-                                                corner_radius=0, height=50)
-        self.btnStart.grid(row=0,column=0,padx=15,pady=10)
+                                                corner_radius=0,
+                                                height=50,
+                                                command=self.start
+                                                )
+        self.btnStart.grid(row=0, column=0, padx=15, pady=10)
 
-
+        self.lblStatus = customtkinter.CTkLabel(self.frameControl2, text="Status : ", font=("Skia", 13))
+        self.lblStatus.grid(row=0, column=1, padx=10, pady=5)
 
     def add(self):
         paths = fd.askopenfilenames(title="Select Image Files", filetypes=(
@@ -164,10 +178,38 @@ class Body(customtkinter.CTkFrame):
         print(len(listOfImages))
 
     def dropdownMilestone_callback(self, choice):
-        print(choice)
+
+        global milestones
+        #print(milestones.get(choice))
+
 
     def dropdownEffect_callback(self, choice):
         print(choice)
+
+
+    def start(self):
+        t1 = Thread(target=self.createVideo)
+        t1.start()
+
+    def createVideo(self):
+        global milestones
+        global listOfImages
+        self.lblStatus.configure(text ="Status : Progress started !!")
+        effect = self.dropdownEffect.get()
+        milestone = milestones.get(self.dropdownMilestone.get())
+
+        vid = VideoEditor()
+
+        mixedFile = vid.makeSlideshow(listOfImages, 3.9, effect)
+        self.lblStatus.configure(text="Status : Slideshow prepared !!")
+        overlay = vid.addImageOverlay(mixedFile, milestone)
+        self.lblStatus.configure(text="Status : Milestone overlay added !!")
+        vid.makeFadeInFadeOut(overlay, 1)
+        self.lblStatus.configure(text="Status : Added effects !!")
+
+        os.remove("output.mp4")
+        os.remove("out1.mp4")
+        self.lblStatus.configure(text="Status : Progress completed successfully !!")
 
 
 class ImageList(customtkinter.CTkScrollableFrame):
@@ -255,6 +297,106 @@ class App(customtkinter.CTk):
 
         self.footer = Footer(self)
         self.footer.grid(row=2, column=0, sticky="sew")
+
+
+class VideoEditor:
+    def __init__(self):
+        self.overlay_path = os.path.join(os.getcwd(), "images/overlays")
+
+    def makeSlideshow(self,list, duration, transitionEffect):
+        cmd = ['ffmpeg', '-y']
+        i = 0
+        while i < len(list):
+            cmd.append('-loop')
+            cmd.append('1')
+            cmd.append('-t')
+            cmd.append(str(duration))
+            cmd.append('-i')
+            cmd.append(list[i])
+            i = i + 1
+        cmd.append('-filter_complex')
+
+        filterComplex1 = ""
+        filterComplex2 = ""
+
+        i = 0
+
+        while i < len(list):
+            if filterComplex1 == "":
+                filterComplex1 = "[{0}]scale=1920:1280:force_original_aspect_ratio=decrease,pad=1920:1280:-1:-1[s{0}];".format(
+                    i)
+
+            else:
+                filterComplex1 = filterComplex1 + "[{0}]scale=1920:1280:force_original_aspect_ratio=decrease,pad=1920:1280:-1:-1[s{0}];".format(
+                    i)
+            i = i + 1
+
+        j = 0
+        offset = 0
+        i = 0
+        while i < len(list) - 1:
+            offset = duration + offset - 0.5
+            if filterComplex2 == "":
+                filterComplex2 = "[s{0}][s{1}]xfade=transition=".format(i,
+                                                                        i + 1) + transitionEffect + ":duration=0.5:offset={1}[f{0}];".format(
+                    j, offset)
+                i = i + 1
+            else:
+                filterComplex2 = filterComplex2 + "[f{0}][s{1}]xfade=transition=".format(j,
+                                                                                         i + 1) + transitionEffect + ":duration=0.5:offset={1}[f{0}];".format(
+                    i, offset)
+                j = j + 1
+                i = i + 1
+
+        print(filterComplex2)
+
+        filterComplex = filterComplex1 + filterComplex2
+
+        cmd.append(filterComplex)
+        cmd.append('-map')
+        cmd.append('[f{0}]'.format(j))
+
+        cmd.append('-r')
+        cmd.append('25')
+        cmd.append('-pix_fmt')
+        cmd.append('yuv420p')
+        cmd.append('-vcodec')
+        cmd.append('libx264')
+        cmd.append('output.mp4')
+
+        print(cmd)
+
+        length = duration * len(list) - 0.5 * (len(list) - 1)
+        print(length)
+        self.startProcess(cmd)
+        return ("output.mp4", length)
+
+    def makeFadeInFadeOut(self,fileName, duration):
+        # Fade in Fade out
+
+        cmd = ['ffmpeg', '-y', '-i', os.path.join(os.getcwd(), fileName[0]), '-vf',
+               'fade=t=in:st=0:d=' + str(duration) + ',fade=t=out:st=' + str(fileName[1] - duration) + ':d=' + str(
+                   duration), '-c:a',
+               'copy',
+               'out.mp4']
+        self.startProcess(cmd)
+
+    def addImageOverlay(self,fileName, milestone):
+        cmd = ['ffmpeg', '-y', '-i', os.path.join(os.getcwd(), 'output.mp4'), '-i',
+               os.path.join(self.overlay_path, milestone),
+               '-filter_complex', "[0:v][1:v] overlay=0:100", "-c:a", "copy", "out1.mp4"]
+
+        self.startProcess(cmd)
+
+        return ("out1.mp4", fileName[1])
+
+    def startProcess(self,cmd):
+        process = Popen(cmd, stdout=PIPE, stderr=PIPE)
+
+        stdout, stderr = process.communicate()
+
+        print(stdout)
+        print(stderr)
 
 
 app = App()
