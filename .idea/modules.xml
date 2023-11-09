@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/../audiomix/.idea/audiomix.iml" filepath="$PROJECT_DIR$/../audiomix/.idea/audiomix.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/videomix.iml" filepath="$PROJECT_DIR$/.idea/videomix.iml" />
     </modules>
   </component>
