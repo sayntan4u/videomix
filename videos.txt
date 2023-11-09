@@ -1,0 +1,2 @@
+file 'C:\\Users\\Abundance\\PycharmProjects\\videomix\\Milestone videos\\f2.mp4'
+file 'C:\\Users\\Abundance\\PycharmProjects\\videomix\\out.mp4'

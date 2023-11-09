@@ -1,5 +1,6 @@
 import os
 from threading import Thread
+from tkinter.filedialog import asksaveasfile
 
 import customtkinter
 from PIL import Image
@@ -24,7 +25,7 @@ new_file = customtkinter.CTkImage(Image.open(os.path.join(image_path, "add-docum
 open_file = customtkinter.CTkImage(Image.open(os.path.join(image_path, "open.png")), size=(17, 17))
 save_file = customtkinter.CTkImage(Image.open(os.path.join(image_path, "disk.png")), size=(17, 17))
 
-milestones = {
+milestoneImages = {
     "F2": "f2.png",
     "Gold Star": "gold.png",
     "L1": "l1.png",
@@ -34,6 +35,18 @@ milestones = {
     "L3": "l3.png",
     "Century": "century.png"
 }
+
+milestoneVideos = {
+    "F2": "f2.mp4",
+    "Gold Star": "gold.mp4",
+    "L1": "l1.mp4",
+    "Double L1": "double_l1.mp4",
+    "L2": "l2.mp4",
+    "Half Century": "half_century.mp4",
+    "L3": "l3.mp4",
+    "Century": "century.mp4"
+}
+
 milestone = ""
 listOfImages = []
 
@@ -180,35 +193,42 @@ class Body(customtkinter.CTkFrame):
     def dropdownMilestone_callback(self, choice):
 
         global milestones
-        #print(milestones.get(choice))
-
+        # print(milestones.get(choice))
 
     def dropdownEffect_callback(self, choice):
         print(choice)
 
-
     def start(self):
-        t1 = Thread(target=self.createVideo)
-        t1.start()
+        f = asksaveasfile(initialfile=self.dropdownMilestone.get(),
+                          defaultextension=".mp4", filetypes=[("Mp4 files", "*.mp4")])
 
-    def createVideo(self):
-        global milestones
+        if f is not None:
+            t1 = Thread(target=self.createVideo, args=[f.name])
+            t1.start()
+
+    def createVideo(self, output):
+        global milestoneImages
         global listOfImages
-        self.lblStatus.configure(text ="Status : Progress started !!")
+        self.lblStatus.configure(text="Status : Progress started !!")
         effect = self.dropdownEffect.get()
-        milestone = milestones.get(self.dropdownMilestone.get())
+        milestoneImage = milestoneImages.get(self.dropdownMilestone.get())
+        milestoneVideo = milestoneVideos.get(self.dropdownMilestone.get())
 
         vid = VideoEditor()
 
         mixedFile = vid.makeSlideshow(listOfImages, 3.9, effect)
         self.lblStatus.configure(text="Status : Slideshow prepared !!")
-        overlay = vid.addImageOverlay(mixedFile, milestone)
+        overlay = vid.addImageOverlay(mixedFile, milestoneImage)
         self.lblStatus.configure(text="Status : Milestone overlay added !!")
-        vid.makeFadeInFadeOut(overlay, 1)
+        final = vid.makeFadeInFadeOut(overlay, 1)
         self.lblStatus.configure(text="Status : Added effects !!")
+        vid.addMilestoneIntro(final, milestoneVideo, output)
+        self.lblStatus.configure(text="Status : Added milestone intro !!")
 
         os.remove("output.mp4")
         os.remove("out1.mp4")
+        #os.remove("out.mp4")
+
         self.lblStatus.configure(text="Status : Progress completed successfully !!")
 
 
@@ -302,8 +322,9 @@ class App(customtkinter.CTk):
 class VideoEditor:
     def __init__(self):
         self.overlay_path = os.path.join(os.getcwd(), "images/overlays")
+        self.video_path = os.path.join(os.getcwd(), "Milestone videos")
 
-    def makeSlideshow(self,list, duration, transitionEffect):
+    def makeSlideshow(self, list, duration, transitionEffect):
         cmd = ['ffmpeg', '-y']
         i = 0
         while i < len(list):
@@ -323,11 +344,11 @@ class VideoEditor:
 
         while i < len(list):
             if filterComplex1 == "":
-                filterComplex1 = "[{0}]scale=1920:1280:force_original_aspect_ratio=decrease,pad=1920:1280:-1:-1[s{0}];".format(
+                filterComplex1 = "[{0}]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:-1:-1[s{0}];".format(
                     i)
 
             else:
-                filterComplex1 = filterComplex1 + "[{0}]scale=1920:1280:force_original_aspect_ratio=decrease,pad=1920:1280:-1:-1[s{0}];".format(
+                filterComplex1 = filterComplex1 + "[{0}]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:-1:-1[s{0}];".format(
                     i)
             i = i + 1
 
@@ -357,7 +378,7 @@ class VideoEditor:
         cmd.append('[f{0}]'.format(j))
 
         cmd.append('-r')
-        cmd.append('25')
+        cmd.append('30')
         cmd.append('-pix_fmt')
         cmd.append('yuv420p')
         cmd.append('-vcodec')
@@ -371,7 +392,7 @@ class VideoEditor:
         self.startProcess(cmd)
         return ("output.mp4", length)
 
-    def makeFadeInFadeOut(self,fileName, duration):
+    def makeFadeInFadeOut(self, fileName, duration):
         # Fade in Fade out
 
         cmd = ['ffmpeg', '-y', '-i', os.path.join(os.getcwd(), fileName[0]), '-vf',
@@ -380,17 +401,29 @@ class VideoEditor:
                'copy',
                'out.mp4']
         self.startProcess(cmd)
+        return "out.mp4"
 
-    def addImageOverlay(self,fileName, milestone):
+    def addImageOverlay(self, fileName, milestoneImage):
         cmd = ['ffmpeg', '-y', '-i', os.path.join(os.getcwd(), 'output.mp4'), '-i',
-               os.path.join(self.overlay_path, milestone),
+               os.path.join(self.overlay_path, milestoneImage),
                '-filter_complex', "[0:v][1:v] overlay=0:100", "-c:a", "copy", "out1.mp4"]
 
         self.startProcess(cmd)
 
         return ("out1.mp4", fileName[1])
 
-    def startProcess(self,cmd):
+    def addMilestoneIntro(self, fileName, milestoneVideo, outputPath):
+
+        f = open("videos.txt", "w")
+        f.write(
+            "file " + os.path.join(self.video_path, milestoneVideo) + "\nfile " + os.path.join(os.getcwd(), fileName))
+        f.close()
+
+        cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", os.path.join(os.getcwd(), "videos.txt"), "-c", "copy", outputPath]
+        print(cmd)
+        self.startProcess(cmd)
+
+    def startProcess(self, cmd):
         process = Popen(cmd, stdout=PIPE, stderr=PIPE)
 
         stdout, stderr = process.communicate()
