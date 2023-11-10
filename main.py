@@ -6,6 +6,9 @@ import customtkinter
 from PIL import Image
 from tkinter import filedialog as fd
 from subprocess import Popen, PIPE
+from moviepy.editor import VideoFileClip, concatenate_videoclips
+from proglog import ProgressBarLogger
+import time
 
 customtkinter.set_appearance_mode("dark")
 customtkinter.set_default_color_theme("green")
@@ -54,7 +57,7 @@ listOfImages = []
 class Header(customtkinter.CTkFrame):
     def __init__(self, master):
         super().__init__(master, fg_color="transparent")
-        self.lblLogo = customtkinter.CTkLabel(self, text="Celebration Call Video Maker", font=("Skia", 30))
+        self.lblLogo = customtkinter.CTkLabel(self, text="CC Video Maker", font=("Skia", 30))
         self.lblLogo.grid(row=0, column=0, padx=10, pady=10)
 
 
@@ -145,7 +148,7 @@ class Body(customtkinter.CTkFrame):
                                                              command=self.dropdownMilestone_callback)
         self.dropdownMilestone.grid(row=1, column=1, padx=10, pady=5)
 
-        self.frameControl2 = customtkinter.CTkFrame(self, height=90)
+        self.frameControl2 = customtkinter.CTkFrame(self, height=90, fg_color="transparent")
         self.frameControl2.grid(row=2, column=1, sticky="nsew", padx=(5, 10), pady=10)
 
         self.frameControl2.grid_rowconfigure(0, weight=1)
@@ -159,9 +162,9 @@ class Body(customtkinter.CTkFrame):
                                                 height=50,
                                                 command=self.start
                                                 )
-        self.btnStart.grid(row=0, column=0, padx=15, pady=10)
+        self.btnStart.grid(row=0, column=0, padx=(30,15), pady=10)
 
-        self.lblStatus = customtkinter.CTkLabel(self.frameControl2, text="Status : ", font=("Skia", 13))
+        self.lblStatus = customtkinter.CTkLabel(self.frameControl2, text="", font=("Skia", 14))
         self.lblStatus.grid(row=0, column=1, padx=10, pady=5)
 
     def add(self):
@@ -209,7 +212,7 @@ class Body(customtkinter.CTkFrame):
     def createVideo(self, output):
         global milestoneImages
         global listOfImages
-        self.lblStatus.configure(text="Status : Progress started !!")
+        self.lblStatus.configure(text="Status : Process started ... preparing slideshow !!")
         effect = self.dropdownEffect.get()
         milestoneImage = milestoneImages.get(self.dropdownMilestone.get())
         milestoneVideo = milestoneVideos.get(self.dropdownMilestone.get())
@@ -217,19 +220,24 @@ class Body(customtkinter.CTkFrame):
         vid = VideoEditor()
 
         mixedFile = vid.makeSlideshow(listOfImages, 3.9, effect)
-        self.lblStatus.configure(text="Status : Slideshow prepared !!")
+        self.lblStatus.configure(text="Status : Slideshow prepared ... adding overlay !!")
         overlay = vid.addImageOverlay(mixedFile, milestoneImage)
-        self.lblStatus.configure(text="Status : Milestone overlay added !!")
+        self.lblStatus.configure(text="Status : Milestone overlay added ... adding effects !!")
         final = vid.makeFadeInFadeOut(overlay, 1)
         self.lblStatus.configure(text="Status : Added effects !!")
-        vid.addMilestoneIntro(final, milestoneVideo, output)
+        vid.addMilestoneIntro(final, milestoneVideo, output, widget=self.lblStatus)
         self.lblStatus.configure(text="Status : Added milestone intro !!")
 
         os.remove("output.mp4")
         os.remove("out1.mp4")
-        #os.remove("out.mp4")
+        os.remove("out.mp4")
 
         self.lblStatus.configure(text="Status : Progress completed successfully !!")
+        Thread(target=self.hideStatus).start()
+
+    def hideStatus(self):
+        time.sleep(5)
+        self.lblStatus.configure(text="")
 
 
 class ImageList(customtkinter.CTkScrollableFrame):
@@ -304,7 +312,7 @@ class App(customtkinter.CTk):
         super().__init__()
         self.geometry("1200x800")
         self.minsize(width=1200, height=800)
-        self.title("Celebration Call Video Maker")
+        self.title("CC Video Maker")
 
         self.grid_rowconfigure(1, weight=1)  # configure grid system
         self.grid_columnconfigure(0, weight=1)
@@ -412,16 +420,15 @@ class VideoEditor:
 
         return ("out1.mp4", fileName[1])
 
-    def addMilestoneIntro(self, fileName, milestoneVideo, outputPath):
+    def addMilestoneIntro(self, fileName, milestoneVideo, outputPath, widget):
+        logger = MyBarLogger(widget)
+        clip1 = VideoFileClip(os.path.join(self.video_path, milestoneVideo))
+        clip2 = VideoFileClip(os.path.join(os.getcwd(), fileName))
+        final_clip = concatenate_videoclips([clip1, clip2])
+        final_clip.write_videofile(outputPath, logger=logger)
+        clip1.close()
+        clip2.close()
 
-        f = open("videos.txt", "w")
-        f.write(
-            "file " + os.path.join(self.video_path, milestoneVideo) + "\nfile " + os.path.join(os.getcwd(), fileName))
-        f.close()
-
-        cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", os.path.join(os.getcwd(), "videos.txt"), "-c", "copy", outputPath]
-        print(cmd)
-        self.startProcess(cmd)
 
     def startProcess(self, cmd):
         process = Popen(cmd, stdout=PIPE, stderr=PIPE)
@@ -431,6 +438,24 @@ class VideoEditor:
         print(stdout)
         print(stderr)
 
+
+class MyBarLogger(ProgressBarLogger):
+
+    def __init__(self, widget):
+        super().__init__()
+        self.statusWidget = widget
+
+    def callback(self, **changes):
+        # Every time the logger message is updated, this function is called with
+        # the `changes` dictionary of the form `parameter: new value`.
+        for (parameter, value) in changes.items():
+            print('Parameter %s is now %s' % (parameter, value))
+
+    def bars_callback(self, bar, attr, value, old_value=None):
+        # Every time the logger progress is updated, this function is called
+        percentage = (value / self.bars[bar]['total']) * 100
+        # print(int(percentage))
+        self.statusWidget.configure(text="Status : Writing video file ... progress - " + str(int(percentage)) + "%")
 
 app = App()
 app.mainloop()
