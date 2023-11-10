@@ -6,6 +6,8 @@ import customtkinter
 from PIL import Image
 from tkinter import filedialog as fd
 from subprocess import Popen, PIPE
+
+from moviepy.audio.io.AudioFileClip import AudioFileClip
 from moviepy.editor import VideoFileClip, concatenate_videoclips
 from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 from proglog import ProgressBarLogger
@@ -335,6 +337,7 @@ class VideoEditor:
     def __init__(self):
         self.overlay_path = os.path.join(os.getcwd(), "images/overlays")
         self.video_path = os.path.join(os.getcwd(), "Milestone videos")
+        self.audio_path = os.path.join(os.getcwd(), "music")
 
     '''
     makeslideshow
@@ -448,6 +451,13 @@ class VideoEditor:
         clip3 = VideoFileClip(os.path.join(self.video_path, "clip_end.mp4"))
 
         final_clip = concatenate_videoclips([clip1, clip2, clip3])
+        # loading audio file
+        audioclip = AudioFileClip(os.path.join(self.audio_path, "champion.mp3")).subclip(0, int(final_clip.duration))
+        audioclip = audioclip.audio_fadein(0.6)
+        audioclip = audioclip.audio_fadeout(0.6)
+
+        final_clip = final_clip.set_audio(audioclip)
+
         final_clip.write_videofile(outputPath, logger=logger)
 
         clip1.close()
