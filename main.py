@@ -7,6 +7,7 @@ from PIL import Image
 from tkinter import filedialog as fd
 from subprocess import Popen, PIPE
 from moviepy.editor import VideoFileClip, concatenate_videoclips
+from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 from proglog import ProgressBarLogger
 import time
 
@@ -162,7 +163,7 @@ class Body(customtkinter.CTkFrame):
                                                 height=50,
                                                 command=self.start
                                                 )
-        self.btnStart.grid(row=0, column=0, padx=(30,15), pady=10)
+        self.btnStart.grid(row=0, column=0, padx=(30, 15), pady=10)
 
         self.lblStatus = customtkinter.CTkLabel(self.frameControl2, text="", font=("Skia", 14))
         self.lblStatus.grid(row=0, column=1, padx=10, pady=5)
@@ -202,6 +203,9 @@ class Body(customtkinter.CTkFrame):
         print(choice)
 
     def start(self):
+        # global listOfImages
+        # v = VideoEditor()
+        # v.prepareCollage(listOfImages)
         f = asksaveasfile(initialfile=self.dropdownMilestone.get(),
                           defaultextension=".mp4", filetypes=[("Mp4 files", "*.mp4")])
 
@@ -332,71 +336,87 @@ class VideoEditor:
         self.overlay_path = os.path.join(os.getcwd(), "images/overlays")
         self.video_path = os.path.join(os.getcwd(), "Milestone videos")
 
+    '''
+    makeslideshow
+    addimageoverlay
+    fadeinfadeout
+    addmilestoneoverlay
+    '''
+
     def makeSlideshow(self, list, duration, transitionEffect):
-        cmd = ['ffmpeg', '-y']
-        i = 0
-        while i < len(list):
-            cmd.append('-loop')
-            cmd.append('1')
-            cmd.append('-t')
-            cmd.append(str(duration))
-            cmd.append('-i')
-            cmd.append(list[i])
-            i = i + 1
-        cmd.append('-filter_complex')
 
-        filterComplex1 = ""
-        filterComplex2 = ""
+        cmd = []
 
-        i = 0
-
-        while i < len(list):
-            if filterComplex1 == "":
-                filterComplex1 = "[{0}]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:-1:-1[s{0}];".format(
-                    i)
-
-            else:
-                filterComplex1 = filterComplex1 + "[{0}]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:-1:-1[s{0}];".format(
-                    i)
-            i = i + 1
-
-        j = 0
-        offset = 0
-        i = 0
-        while i < len(list) - 1:
-            offset = duration + offset - 0.5
-            if filterComplex2 == "":
-                filterComplex2 = "[s{0}][s{1}]xfade=transition=".format(i,
-                                                                        i + 1) + transitionEffect + ":duration=0.5:offset={1}[f{0}];".format(
-                    j, offset)
+        if len(list) == 1:
+            cmd = ["ffmpeg", "-y", "-loop", "1", "-i", list[0], "-c:v", "libx264", "-t", "4", "-pix_fmt", "yuv420p",
+                   "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease:eval=frame,pad=1920:1080:-1:-1:eval=frame", "output.mp4"]
+            length = 4
+        else:
+            cmd = ['ffmpeg', '-y']
+            i = 0
+            while i < len(list):
+                cmd.append('-loop')
+                cmd.append('1')
+                cmd.append('-t')
+                cmd.append(str(duration))
+                cmd.append('-i')
+                cmd.append(list[i])
                 i = i + 1
-            else:
-                filterComplex2 = filterComplex2 + "[f{0}][s{1}]xfade=transition=".format(j,
-                                                                                         i + 1) + transitionEffect + ":duration=0.5:offset={1}[f{0}];".format(
-                    i, offset)
-                j = j + 1
+            cmd.append('-filter_complex')
+
+            filterComplex1 = ""
+            filterComplex2 = ""
+
+            i = 0
+
+            while i < len(list):
+                if filterComplex1 == "":
+                    filterComplex1 = "[{0}]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:-1:-1[s{0}];".format(
+                        i)
+
+                else:
+                    filterComplex1 = filterComplex1 + "[{0}]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:-1:-1[s{0}];".format(
+                        i)
                 i = i + 1
 
-        print(filterComplex2)
+            j = 0
+            offset = 0
+            i = 0
+            while i < len(list) - 1:
+                offset = duration + offset - 0.5
+                if filterComplex2 == "":
+                    filterComplex2 = "[s{0}][s{1}]xfade=transition=".format(i,
+                                                                            i + 1) + transitionEffect + ":duration=0.5:offset={1}[f{0}];".format(
+                        j, offset)
+                    i = i + 1
+                else:
+                    filterComplex2 = filterComplex2 + "[f{0}][s{1}]xfade=transition=".format(j,
+                                                                                             i + 1) + transitionEffect + ":duration=0.5:offset={1}[f{0}];".format(
+                        i, offset)
+                    j = j + 1
+                    i = i + 1
 
-        filterComplex = filterComplex1 + filterComplex2
+            print(filterComplex2)
 
-        cmd.append(filterComplex)
-        cmd.append('-map')
-        cmd.append('[f{0}]'.format(j))
+            filterComplex = filterComplex1 + filterComplex2
 
-        cmd.append('-r')
-        cmd.append('30')
-        cmd.append('-pix_fmt')
-        cmd.append('yuv420p')
-        cmd.append('-vcodec')
-        cmd.append('libx264')
-        cmd.append('output.mp4')
+            cmd.append(filterComplex)
+            cmd.append('-map')
+            cmd.append('[f{0}]'.format(j))
 
-        print(cmd)
+            cmd.append('-r')
+            cmd.append('30')
+            cmd.append('-pix_fmt')
+            cmd.append('yuv420p')
+            cmd.append('-vcodec')
+            cmd.append('libx264')
+            cmd.append('output.mp4')
 
-        length = duration * len(list) - 0.5 * (len(list) - 1)
-        print(length)
+            print(cmd)
+
+            length = duration * len(list) - 0.5 * (len(list) - 1)
+            print(length)
+
         self.startProcess(cmd)
         return ("output.mp4", length)
 
@@ -422,13 +442,26 @@ class VideoEditor:
 
     def addMilestoneIntro(self, fileName, milestoneVideo, outputPath, widget):
         logger = MyBarLogger(widget)
+
         clip1 = VideoFileClip(os.path.join(self.video_path, milestoneVideo))
         clip2 = VideoFileClip(os.path.join(os.getcwd(), fileName))
-        final_clip = concatenate_videoclips([clip1, clip2])
+        clip3 = VideoFileClip(os.path.join(self.video_path, "clip_end.mp4"))
+
+        final_clip = concatenate_videoclips([clip1, clip2, clip3])
         final_clip.write_videofile(outputPath, logger=logger)
+
         clip1.close()
         clip2.close()
 
+    def prepareCollage(self, listOfImages):
+        new = Image.new("RGBA", (1920, 1080))
+        count = len(listOfImages)
+
+        for img in listOfImages:
+            img = Image.open(img)
+            print(img.width, img.height)
+
+        new.show()
 
     def startProcess(self, cmd):
         process = Popen(cmd, stdout=PIPE, stderr=PIPE)
@@ -457,5 +490,7 @@ class MyBarLogger(ProgressBarLogger):
         # print(int(percentage))
         self.statusWidget.configure(text="Status : Writing video file ... progress - " + str(int(percentage)) + "%")
 
+
 app = App()
+
 app.mainloop()
